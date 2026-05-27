@@ -397,7 +397,7 @@ async function retrievePackageData (pkg, verbose = false) {
       packageData.id = pkg.name
       packageData.repoUrl = `https://github.com/${manifest.repo}`
       packageData.defaultBranch = 'main' // Default to 'main', could also try 'master'
-      packageData.readmeUrl = `https://github.com/${manifest.repo}#readme`
+      packageData.readmeUrl = await fetchReadmeUrl(manifest.repo, verbose)
 
       // Build icon URL from GitHub repo
       if (manifest.icon) {
@@ -497,6 +497,31 @@ async function getValidIconUrl (packageName, iconName) {
     }
   }
   return null
+}
+
+/**
+ * Fetch the README URL for a given repo using the GitHub readme API.
+ * This resolves the actual filename regardless of casing (e.g. Readme.md, README.md).
+ * @param {string} repo - The GitHub repo identifier, e.g. "owner/repo".
+ * @param {boolean} verbose
+ * @returns {Promise<string>} The raw download URL for the README, or the #readme anchor as fallback.
+ */
+async function fetchReadmeUrl (repo, verbose = false) {
+  try {
+    const response = await fetchWithRetry(
+      `https://api.github.com/repos/${repo}/readme`,
+      { headers: getGitHubHeaders() },
+      3,
+      verbose
+    )
+    if (response.ok) {
+      const data = await response.json()
+      if (data.download_url) return data.download_url
+    }
+  } catch (error) {
+    if (verbose) console.log(`Error fetching README URL for ${repo}:`, error.message)
+  }
+  return `https://github.com/${repo}#readme`
 }
 
 async function fetchCommitDates (repo, verbose = false) {
